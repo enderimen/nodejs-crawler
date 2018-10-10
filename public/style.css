@@ -1,0 +1,60 @@
+.header {
+    width: 900px;
+    height: 40px;
+    margin-left: 40px;
+}
+
+.general {
+    color : white;
+    display: inline;
+    margin-right:10px;
+}
+
+.space {
+    margin-right:10px;
+    padding: 3px;
+}
+
+.green {
+    background: #43a047;
+}
+
+.red {
+    background: #ef5350;
+}
+
+.orange {
+    background: orange;
+}
+
+.gray {
+    background: #424242;
+}
+
+.dark-gray {
+    background: #263238;
+}
+
+.light-gray {
+    background: #9e9e9e;
+}
+
+.black{
+    background: black;
+}
+
+.pink {
+    background: pink;
+}
+
+.blue {
+    background: #29b6f6;
+}
+
+a {
+    text-decoration: none;
+}
+
+.black-color {
+    color: black;
+}

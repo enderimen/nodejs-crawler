@@ -1,0 +1,43 @@
+html
+  head
+    title= title
+    link(href="public/style.css", rel="stylesheet")
+    
+  body
+
+    div.header
+      each t in total
+        span.general.green.space="200 Total: " + t['okTotal']
+        span.general.blue.space="301 Total: " + t['redirectTotal']
+        span.general.red.space="404 Total: " + t['notFoundTotal']
+        span.general.gray.space="501 Total: " + t['serverErrorTotal']
+        span.general.light-gray.space="502 Total: " + t['badGatewayTotal']
+        span.general.dark-gray.space="503 Total: " + t['serverUnavailableTotal']
+
+    h1(style={'float':'right','margin':'10px'})= "Toplam: " + data.length
+    
+    ol
+      each val in data
+        li(style={'margin-bottom':'5px'})
+          if val['statusCode'] == '200'
+            span.general.black=val['time']
+            span.general.green=val['statusCode']
+          else if val['statusCode'] == '301'
+            span.general.black=val['time']
+            span.general.orange=val['statusCode']
+          else if val['statusCode'] == '404'
+            span.general.black=val['time']
+            span.general.red=val['statusCode']
+          else if val['statusCode'] == '501'
+            span.general.black=val['time']
+            span.general.gray=val['statusCode']
+          else if val['statusCode'] == '502'
+            span.general.black=val['time']
+            span.general.light-gray=val['statusCode']
+          else if val['statusCode'] == '503'
+            span.general.black=val['time']
+            span.general.dark-gray=val['statusCode']
+          else
+            span.general.black=val['time']
+            span.general.pink=val['statusCode']
+          a(href=val['url'] target="_blank"): span.black-color=val['url']
