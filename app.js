@@ -1,13 +1,16 @@
-const express = require('express');
-const fs = require('fs');
-const request = require('sync-request');
+var express = require('express'),
+    fs = require('fs'),
+    // request = require('sync-request'),
+    request = require('request'),
+    app = express(),
+    port = 3000,
+    http = require('http'),
+    { Pool } = require('pg');
 
-const app = express();
-const port = 3000;
 
 app.set('view engine', 'pug');
 
-app.use('/public', express.static('public'))
+app.use('/public', express.static('public'));
 
 // CORS error (solve)
 app.use(function(req, res, next) {
@@ -16,62 +19,102 @@ app.use(function(req, res, next) {
   next();
 });
 
+var content;
+var notFoundTotal = 0,
+    redirectTotal = 0,
+    okTotal = 0,
+    serverErrorTotal = 0,
+    serverUnavailableTotal = 0,
+    badGatewayTotal = 0,
+    pool,
+    codes = [], // status codes
+    codesTotal = [],
+    count = 0;
+            
 app.get('/', (req, res) => {
+    codes = []; // status codes
+    codesTotal = [];
+    count = 0;
+    notFoundTotal = 0;
+    redirectTotal = 0;
+    okTotal = 0;
+    serverErrorTotal = 0;
+    serverUnavailableTotal = 0;
+    badGatewayTotal = 0;
 
-    var codes = []; // for status codes
-    var codesTotal = [];
-    var file = 'd-emlakjet-com.csv';
+    try {
+        var file = 'm-emlakjet-com.csv';
 
-    var content = fs.readFileSync(file, 'utf8').toString().split("\n"); // line by line
-    
-    var notFoundTotal = 0;
-    var redirectTotal = 0;
-    var okTotal = 0;
-    var serverErrorTotal = 0;
-    var serverUnavailableTotal = 0;
-    var badGatewayTotal = 0;
+        content = fs.readFileSync(file, 'utf8').toString().split("\n"); // line by line
 
-    content = content.map(x => controlRegex(x)); // apply the regex filter
-    content = content.filter(x => !!x); // not null fields
-    content = content.map(x => x[0]); // url
-    console.log("Please wait! Loading...");
-    // all url and status codes
-    content.forEach(function(item) {
+        pool = new Pool({
+            host: 'localhost',
+            user: 'root',
+            password: '123',
+            database: 'notfound',
+            max: 20
+        });
 
-        let value = getTime();
-        
-        let statusCode = requestUrl(item);
+        content = content.map(x => controlRegex(x)); // apply the regex filter
+        content = content.filter(x => !!x); // not null fields
+        content = content.map(x => x[0]); // url
+        console.log("Please wait! Loading...");
 
-        if(statusCode == '404')
-            notFoundTotal++;
-        else if(statusCode == '301')
-            redirectTotal++;
-        else if(statusCode == '200')
-            okTotal++;
-        else if(statusCode == '501')
-            serverErrorTotal++;
-        else if(statusCode == '502')
-            badGatewayTotal++;
-        else if(statusCode == '503')
-            serverUnavailableTotal++;
+        console.log('content.length', content.length);
+        // all url and status codes
+        content.forEach(function(url) {
+            request({ url: url, followRedirect: false }, function (error, response, body) {
+                
+                check(req, res, {
+                    statusCode: response && response.statusCode,
+                    url: url,
+                    redirect: response.headers.location
+                });
+            });
+        });
 
-        var res = {"statusCode" : statusCode, "time": value, "url": item}; // GET request to selected URL
+    } catch (error) {
+        console.log("File not exist!", error);
+    }
+});
 
-        codes.push(res); // add to codes array
 
-        console.log(statusCode);
-    });
-  
-    console.log(codes);
+function check(req, res, item ){
+    console.log(item.statusCode, item.url, count+1);
+    if(item.statusCode == '404')
+        notFoundTotal++;
+    else if(item.statusCode == '301')
+        redirectTotal++;
+    else if(item.statusCode == '200')
+        okTotal++;
+    else if(item.statusCode == '501')
+        serverErrorTotal++;
+    else if(item.statusCode == '502')
+        badGatewayTotal++;
+    else if(item.statusCode == '503')
+        serverUnavailableTotal++;
 
-    var total = { 
-                notFoundTotal : notFoundTotal, 
-                redirectTotal : redirectTotal, 
-                okTotal : okTotal, 
-                serverErrorTotal : serverErrorTotal,
-                serverUnavailableTotal: serverUnavailableTotal,
-                badGatewayTotal: badGatewayTotal
-            };
+    var response = {"id": count+1, "statusCode" : item.statusCode, "time": getTime(), "url": item.url, "redirectUrl": item.redirect}; // GET request to selected URL
+
+    codes.push(response); // add to codes array
+
+    count++;
+    if(count == content.length){
+        done(req, res, codes);
+    }
+}
+
+function done(req, res, result){
+
+    console.log(result);
+    var total = {
+        notFoundTotal : notFoundTotal, 
+        redirectTotal : redirectTotal, 
+        okTotal : okTotal, 
+        serverErrorTotal : serverErrorTotal,
+        serverUnavailableTotal: serverUnavailableTotal,
+        badGatewayTotal: badGatewayTotal
+    };
 
     codesTotal.push(total);
 
@@ -81,27 +124,37 @@ app.get('/', (req, res) => {
         data: codes,
         total: codesTotal
     });
-    
+        
     console.log("Mission Completed!");
 
-    res.end();
-});
+    pool.connect((err, client, release) => {
+        if (err) {
+            return console.error('Error acquiring client', err.stack)
+        }
 
-// regex control (http or https url) 
+        result.forEach((item) => {
+
+            client.query('INSERT into url(url_id, status_code, url, request_time, redirect_url) VALUES($1, $2, $3, $4, $5)', 
+            [item.id, item.statusCode, item.url, item.time, item.redirectUrl], (err, result) => {
+                release()
+                if (err) {
+                return console.error('Error executing query', err.stack)
+                }
+                console.log(result.rows);
+            });
+        });
+    });
+
+    res.end();
+}
+
+// regex control (http or http url) 
 var controlRegex = (data) => {
 
     let regex = /(https?:\/\/[^\s:,]+)/gi;
 
     return data.match(regex);
 }
-
-// GET request (returned value: status code)
-var requestUrl = (url) => {
-
-    let response = request('GET', url);
-    
-    return response.statusCode;
-};
 
 // Request time
 var getTime = () => {
@@ -114,6 +167,18 @@ var getTime = () => {
 
     return value;
 }
+
+var redirectControl = (url) => {
+    
+    http.get(url, (response) => {
+        
+        console.log(response.statusCode);
+        console.log(response.headers.location);
+        
+    });
+};
+
+// redirectControl('https://www.emlakjet.com/ilan/5979755');
 
 app.listen(port, function() {
     console.log('listening on 3000');
