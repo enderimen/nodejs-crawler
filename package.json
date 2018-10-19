@@ -16,6 +16,7 @@
     "pg-format": "^1.0.4",
     "pug": "^2.0.3",
     "request": "^2.88.0",
-    "sync-request": "^6.0.0"
+    "sync-request": "^6.0.0",
+    "sql": "^0.78.0"
   }
 }

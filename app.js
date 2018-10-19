@@ -5,7 +5,8 @@ var express = require('express'),
     app = express(),
     port = 3000,
     http = require('http'),
-    { Pool } = require('pg');
+    { Pool } = require('pg')
+    sql = require('sql');
 
 
 app.set('view engine', 'pug');
@@ -47,14 +48,6 @@ app.get('/', (req, res) => {
 
         content = fs.readFileSync(file, 'utf8').toString().split("\n"); // line by line
 
-        pool = new Pool({
-            host: 'localhost',
-            user: 'root',
-            password: '123',
-            database: 'notfound',
-            max: 20
-        });
-
         content = content.map(x => controlRegex(x)); // apply the regex filter
         content = content.filter(x => !!x); // not null fields
         content = content.map(x => x[0]); // url
@@ -80,7 +73,7 @@ app.get('/', (req, res) => {
 
 
 function check(req, res, item ){
-    console.log(item.statusCode, item.url, count+1);
+    //console.log(item.statusCode, item.url, count+1);
     if(item.statusCode == '404')
         notFoundTotal++;
     else if(item.statusCode == '301')
@@ -94,7 +87,7 @@ function check(req, res, item ){
     else if(item.statusCode == '503')
         serverUnavailableTotal++;
 
-    var response = {"id": count+1, "statusCode" : item.statusCode, "time": getTime(), "url": item.url, "redirectUrl": item.redirect}; // GET request to selected URL
+    var response = { "status_code" : item.statusCode, "url": item.url, "request_time": getTime(), "redirect_url": item.redirect, "url_id": count+1, }; // GET request to selected URL
 
     codes.push(response); // add to codes array
 
@@ -116,6 +109,17 @@ function done(req, res, result){
         badGatewayTotal: badGatewayTotal
     };
 
+    let dataFormat = sql.define({
+        name: 'url',
+        columns: [
+            'status_code',
+            'url',
+            'request_time',
+            'redirect_url',
+            'url_id'
+        ]
+    });
+
     codesTotal.push(total);
 
     // send to index file
@@ -126,24 +130,31 @@ function done(req, res, result){
     });
         
     console.log("Mission Completed!");
-
-    pool.connect((err, client, release) => {
-        if (err) {
-            return console.error('Error acquiring client', err.stack)
-        }
-
-        result.forEach((item) => {
-
-            client.query('INSERT into url(url_id, status_code, url, request_time, redirect_url) VALUES($1, $2, $3, $4, $5)', 
-            [item.id, item.statusCode, item.url, item.time, item.redirectUrl], (err, result) => {
-                release()
-                if (err) {
-                return console.error('Error executing query', err.stack)
-                }
-                console.log(result.rows);
-            });
+    try {
+        // DB info
+        pool = new Pool({
+            host: 'localhost',
+            user: 'root',
+            password: '123',
+            database: 'notfound',
+            max: 20
         });
-    });
+
+        // Connection Opened
+        pool.connect();
+
+        // Bulk insert
+        let query = dataFormat.insert(result).returning(dataFormat.url_id).toQuery();
+        console.log(query);
+
+        let rows = pool.query(query);
+        console.log("Rows Affected!");
+    }catch(e){
+        console.log("Query not created!", e);
+    }finally{
+        // Connection Closed
+        pool.end();
+    }
 
     res.end();
 }
@@ -167,18 +178,6 @@ var getTime = () => {
 
     return value;
 }
-
-var redirectControl = (url) => {
-    
-    http.get(url, (response) => {
-        
-        console.log(response.statusCode);
-        console.log(response.headers.location);
-        
-    });
-};
-
-// redirectControl('https://www.emlakjet.com/ilan/5979755');
 
 app.listen(port, function() {
     console.log('listening on 3000');
