@@ -5,15 +5,6 @@ html
     
   body
 
-    div.header
-      each t in total
-        span.general.green.space="200 Total: " + t['okTotal']
-        span.general.blue.space="301 Total: " + t['redirectTotal']
-        span.general.red.space="404 Total: " + t['notFoundTotal']
-        span.general.gray.space="501 Total: " + t['serverErrorTotal']
-        span.general.light-gray.space="502 Total: " + t['badGatewayTotal']
-        span.general.dark-gray.space="503 Total: " + t['serverUnavailableTotal']
-
     h1(style={'float':'right','margin':'10px'})= "Total: " + data.length
     
     ol
