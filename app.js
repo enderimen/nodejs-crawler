@@ -1,69 +1,116 @@
 var express = require('express'),
-    fs = require('fs'),
-    // request = require('sync-request'),
     request = require('request'),
     app = express(),
     port = 3000,
-    http = require('http'),
-    { Pool } = require('pg')
-    sql = require('sql');
-
+    { Pool } = require('pg'),
+    sql = require('sql'),
+    lineByLineReader = require('line-by-line');
 
 app.set('view engine', 'pug');
 
 app.use('/public', express.static('public'));
 
 // CORS error (solve)
-app.use(function(req, res, next) {
+app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
   next();
 });
 
-var content;
-var notFoundTotal = 0,
-    redirectTotal = 0,
-    okTotal = 0,
-    serverErrorTotal = 0,
-    serverUnavailableTotal = 0,
-    badGatewayTotal = 0,
-    pool,
-    codes = [], // status codes
-    codesTotal = [],
-    count = 0;
-            
+// initial assignments
+var pool        = "",
+    regexArray  = "",
+    file        = 'm-emlakjet-com.csv',
+    codes       = [], // status codes
+    filtered    = [],
+    count       = 0,
+    lineNumber  = 0,  
+    chunkSize   = 5,
+    totalLine   = 0;  // line by line
+
 app.get('/', (req, res) => {
-    codes = []; // status codes
-    codesTotal = [];
-    count = 0;
-    notFoundTotal = 0;
-    redirectTotal = 0;
-    okTotal = 0;
-    serverErrorTotal = 0;
-    serverUnavailableTotal = 0;
-    badGatewayTotal = 0;
+    
+    codes       = []; //
+    pool        = "";
+    regexArray  = "";
+    codes       = []; // status codes
+    filtered    = [];
+    count       = 0;
+    lineNumber  = 0;
+    totalLine   = 0;
 
     try {
-        var file = 'm-emlakjet-com.csv';
+    
+        // read file (Sync)
+        lr = new lineByLineReader(file);
 
-        content = fs.readFileSync(file, 'utf8').toString().split("\n"); // line by line
+        // Read file error handle
+        lr.on('error', function (err) {
+            console.log("Error: ", err);
+        });
 
-        content = content.map(x => controlRegex(x)); // apply the regex filter
-        content = content.filter(x => !!x); // not null fields
-        content = content.map(x => x[0]); // url
-        console.log("Please wait! Loading...");
+        // line by line read
+        lr.on('line', ( url ) => {
+            
+            // read next line
+            lr.resume();
+            
+            // regex url
+            regexArray = regexControl(url);
 
-        console.log('content.length', content.length);
-        // all url and status codes
-        content.forEach(function(url) {
-            request({ url: url, followRedirect: false }, function (error, response, body) {
-                
-                check(req, res, {
-                    statusCode: response && response.statusCode,
-                    url: url,
-                    redirect: response.headers.location
-                });
+            // null control
+            if(regexArray != null && regexArray.length > 0) {
+                count++;   // chunk size (control)
+                totalLine++; // total line number
+                filtered.push(regexArray[0]); // add url to filtered array
+            }
+            
+            // chunk by chunk
+            let promise = new Promise((resolve, reject) => {
+
+                // chunk control
+                if(count == chunkSize) {
+
+                    // reading stoped
+                    lr.pause();
+                    
+                    console.log("****************");
+
+                    // GET Request
+                    requestPromise(req, res, filtered);
+                    
+                    // reset
+                    filtered = [];
+                    count = 0;
+                    
+                    resolve("stoped!");
+                    
+                    // reading resume
+                    lr.resume();
+
+                }else {
+                    reject("Fail");
+                }
             });
+            
+            // promise result
+            promise.then( (res) => {
+                //console.log("Result: ", res);
+            }).catch( (err) => {
+                //console.log("Promise Result: ", err);
+            });
+        });
+        
+        // All lines are read, file is closed now.
+        lr.on('end', function () {
+            
+            lr.close();
+
+            // Example; chunk: 5, line number: 7 (5 | 2)
+
+            if(totalLine % chunkSize != 0) {  
+                requestPromise(req, res, filtered); // 2 line
+            }
         });
 
     } catch (error) {
@@ -71,44 +118,65 @@ app.get('/', (req, res) => {
     }
 });
 
+// GET Request
+let requestPromise = (req, res, filtered) => {
+        
+    return new Promise((resolve, reject) => {
 
-function check(req, res, item ){
-    //console.log(item.statusCode, item.url, count+1);
-    if(item.statusCode == '404')
-        notFoundTotal++;
-    else if(item.statusCode == '301')
-        redirectTotal++;
-    else if(item.statusCode == '200')
-        okTotal++;
-    else if(item.statusCode == '501')
-        serverErrorTotal++;
-    else if(item.statusCode == '502')
-        badGatewayTotal++;
-    else if(item.statusCode == '503')
-        serverUnavailableTotal++;
+        if(resolve != null){
 
-    var response = { "status_code" : item.statusCode, "url": item.url, "request_time": getTime(), "redirect_url": item.redirect, "url_id": count+1, }; // GET request to selected URL
+            filtered.forEach(url => {
+
+                console.log("Request: ", url);
+
+                request({   url: url,
+                            followRedirect: false,
+                            headers: {
+                                'user-agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; http://www.google.com/bot.html)'                                
+                            }}, (error, response, body) => {
+                            console.log(JSON.stringify(req.headers));
+                            if(response != null) {
+                                check(req, res, {
+                                    statusCode: response && response.statusCode,
+                                    url: url,
+                                    redirect: response.headers.location
+                                });
+                            }
+                });
+            });
+        }
+    });
+
+};
+
+// overflow control
+var check = (req, res, item ) => {
+
+    // id (for table)
+    lineNumber++; 
+
+    // GET request to selected URL
+    var response = {
+                        "status_code" : item.statusCode,
+                        "url": item.url,
+                        "request_time": getRequestTime(),
+                        "redirect_url": item.redirect,
+                        "url_id": lineNumber,
+                    };
 
     codes.push(response); // add to codes array
-
-    count++;
-    if(count == content.length){
+    
+    if(totalLine == lineNumber) {
         done(req, res, codes);
     }
 }
 
-function done(req, res, result){
+// all datas saved to DB.
+var done = (req, res, result) => {
 
     console.log(result);
-    var total = {
-        notFoundTotal : notFoundTotal, 
-        redirectTotal : redirectTotal, 
-        okTotal : okTotal, 
-        serverErrorTotal : serverErrorTotal,
-        serverUnavailableTotal: serverUnavailableTotal,
-        badGatewayTotal: badGatewayTotal
-    };
 
+    // DB connect
     let dataFormat = sql.define({
         name: 'url',
         columns: [
@@ -120,18 +188,9 @@ function done(req, res, result){
         ]
     });
 
-    codesTotal.push(total);
-
-    // send to index file
-    res.render('index', {
-        title: "Emlakjet - 404 Analysis",
-        data: codes,
-        total: codesTotal
-    });
-        
-    console.log("Mission Completed!");
     try {
-        // DB info
+
+        // DB connection string
         pool = new Pool({
             host: 'localhost',
             user: 'root',
@@ -139,17 +198,18 @@ function done(req, res, result){
             database: 'notfound',
             max: 20
         });
-
-        // Connection Opened
+        
+        //Connection Opened
         pool.connect();
 
         // Bulk insert
-        let query = dataFormat.insert(result).returning(dataFormat.url_id).toQuery();
-        console.log(query);
+        //let query = dataFormat.insert(result).returning(dataFormat.url_id).toQuery();
+        //console.log(query);
 
-        let rows = pool.query(query);
+        //let rows = pool.query(query);
         console.log("Rows Affected!");
-    }catch(e){
+        
+    }catch(e) {
         console.log("Query not created!", e);
     }finally{
         // Connection Closed
@@ -159,8 +219,8 @@ function done(req, res, result){
     res.end();
 }
 
-// regex control (http or http url) 
-var controlRegex = (data) => {
+// Regex control (http or http url) 
+var regexControl = (data) => {
 
     let regex = /(https?:\/\/[^\s:,]+)/gi;
 
@@ -168,7 +228,7 @@ var controlRegex = (data) => {
 }
 
 // Request time
-var getTime = () => {
+var getRequestTime = () => {
 
     const date = new Date();
 
@@ -179,6 +239,15 @@ var getTime = () => {
     return value;
 }
 
+// XML file reader
+var getXmlReader = (xml) => {
+
+    // read with jackson.
+    const ast = XmlReader.parseSync(xml);
+
+}
+
+// Listen port
 app.listen(port, function() {
     console.log('listening on 3000');
 });
