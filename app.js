@@ -1,3 +1,4 @@
+// Modules
 var express = require('express'),
     request = require('request'),
     app = express(),
@@ -6,8 +7,10 @@ var express = require('express'),
     sql = require('sql'),
     lineByLineReader = require('line-by-line');
 
+// pug engine (UI)
 app.set('view engine', 'pug');
 
+// .css, .js .etc files access permission (only public/ folder)
 app.use('/public', express.static('public'));
 
 // CORS error (solve)
@@ -25,7 +28,7 @@ var pool        = "",
     filtered    = [],
     count       = 0,
     lineNumber  = 0,  
-    chunkSize   = 5,
+    chunkSize   = 100,
     totalLine   = 0;  // line by line
 
 app.get('/', (req, res) => {
@@ -120,21 +123,21 @@ app.get('/', (req, res) => {
 
 // GET Request
 let requestPromise = (req, res, filtered) => {
-        
+    
     return new Promise((resolve, reject) => {
 
         if(resolve != null){
 
             filtered.forEach(url => {
 
-                console.log("Request: ", url);
+                //console.log("Request: ", url);
 
                 request({   url: url,
                             followRedirect: false,
                             headers: {
-                                'user-agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; http://www.google.com/bot.html)'                                
+                                'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'                 
                             }}, (error, response, body) => {
-                            console.log(JSON.stringify(req.headers));
+                            
                             if(response != null) {
                                 check(req, res, {
                                     statusCode: response && response.statusCode,
@@ -154,7 +157,8 @@ var check = (req, res, item ) => {
 
     // id (for table)
     lineNumber++; 
-
+    //console.log(lineNumber, item.statusCode, item.url);
+ 
     // GET request to selected URL
     var response = {
                         "status_code" : item.statusCode,
@@ -166,6 +170,7 @@ var check = (req, res, item ) => {
 
     codes.push(response); // add to codes array
     
+    // all lines ended. (Done!)
     if(totalLine == lineNumber) {
         done(req, res, codes);
     }
