@@ -1,11 +1,13 @@
 // Modules
 var express = require('express'),
     request = require('request'),
-    app = express(),
-    port = 3000,
-    { Pool } = require('pg'),
-    sql = require('sql'),
-    lineByLineReader = require('line-by-line');
+    fs      = require('fs'),
+    app     = express(),
+    port    = 3000,
+    {Pool}  = require('pg'),
+    sql     = require('sql'),
+    lineByLineReader = require('line-by-line'),
+    xmlReader = require('xml2js').parseString;
 
 // pug engine (UI)
 app.set('view engine', 'pug');
@@ -21,165 +23,186 @@ app.use((req, res, next) => {
 });
 
 // initial assignments
-var pool        = "",
-    regexArray  = "",
-    file        = 'm-emlakjet-com.csv',
-    codes       = [], // status codes
-    filtered    = [],
-    count       = 0,
-    lineNumber  = 0,  
-    chunkSize   = 100,
-    totalLine   = 0;  // line by line
+{
+    var pool        = "", // postgre define
+        regexArray  = "",
 
-app.get('/', (req, res) => {
-    
-    codes       = []; //
-    pool        = "";
-    regexArray  = "";
-    codes       = []; // status codes
-    filtered    = [];
-    count       = 0;
-    lineNumber  = 0;
-    totalLine   = 0;
-
-    try {
-    
-        // read file (Sync)
-        lr = new lineByLineReader(file);
-
-        // Read file error handle
-        lr.on('error', function (err) {
-            console.log("Error: ", err);
-        });
-
-        // line by line read
-        lr.on('line', ( url ) => {
-            
-            // read next line
-            lr.resume();
-            
-            // regex url
-            regexArray = regexControl(url);
-
-            // null control
-            if(regexArray != null && regexArray.length > 0) {
-                count++;   // chunk size (control)
-                totalLine++; // total line number
-                filtered.push(regexArray[0]); // add url to filtered array
-            }
-            
-            // chunk by chunk
-            let promise = new Promise((resolve, reject) => {
-
-                // chunk control
-                if(count == chunkSize) {
-
-                    // reading stoped
-                    lr.pause();
-                    
-                    console.log("****************");
-
-                    // GET Request
-                    requestPromise(req, res, filtered);
-                    
-                    // reset
-                    filtered = [];
-                    count = 0;
-                    
-                    resolve("stoped!");
-                    
-                    // reading resume
-                    lr.resume();
-
-                }else {
-                    reject("Fail");
-                }
-            });
-            
-            // promise result
-            promise.then( (res) => {
-                //console.log("Result: ", res);
-            }).catch( (err) => {
-                //console.log("Promise Result: ", err);
-            });
-        });
+        file        = 'output1.csv', // file name
         
-        // All lines are read, file is closed now.
-        lr.on('end', function () {
+        codes       = [],   // list of data to be saved to db
+        filtered    = [],   // regexed urls
+        
+        count       = 0,    // chunk control
+        chunkSize   = 1000,  // part 
+        totalLine   = 0,    // total line number
+        id          = 1,    // url id (auto increment)
+        
+        lineReader  = null; 
+
+    // User Agent
+    var MobileGoogleBot  = 'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.96 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+        DesktopGoogleBot = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
+
+}
+
+// Read file (.xml, .csv) and request
+let readFile = (file, filtered) => {
+
+    // read file (Sync)
+    lineReader = new lineByLineReader(file);
+
+    // Read file error handle
+    lineReader.on('error', (err) => {
+        console.log("Error: ", err);
+    });
+   
+    // line by line read
+    lineReader.on('line', ( url ) => {
+        
+        lineReader.resume();
+
+        // regex url
+        regexArray = regexControl(url);
+        
+        // null control
+        if(regexArray != null && regexArray.length > 0) {
+
+            count++;   // chunk size (control)
+            totalLine++; // total line number
+            filtered.push(regexArray[0]); // add url to filtered array
+
+        }
+
+        if(count == chunkSize) {
+
+            lineReader.pause();
             
-            lr.close();
+            getRequest(filtered, chunkSize).then((result) => {
+        
+                console.log("*********"+ result +"**********");
+                
+                done(codes);
+        
+                // reset
+                filtered  = [];
+                count     = 0;
 
-            // Example; chunk: 5, line number: 7 (5 | 2)
-
-            if(totalLine % chunkSize != 0) {  
-                requestPromise(req, res, filtered); // 2 line
-            }
-        });
-
-    } catch (error) {
-        console.log("File not exist!", error);
-    }
-});
-
-// GET Request
-let requestPromise = (req, res, filtered) => {
-    
-    return new Promise((resolve, reject) => {
-
-        if(resolve != null){
-
-            filtered.forEach(url => {
-
-                //console.log("Request: ", url);
-
-                request({   url: url,
-                            followRedirect: false,
-                            headers: {
-                                'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'                 
-                            }}, (error, response, body) => {
-                            
-                            if(response != null) {
-                                check(req, res, {
-                                    statusCode: response && response.statusCode,
-                                    url: url,
-                                    redirect: response.headers.location
-                                });
-                            }
-                });
+                if(totalLine % chunkSize == 0){
+                    codes = [];
+                }
+                
+                console.log("Total Line Number :", totalLine);
+                
+                lineReader.resume();
+        
+            }).catch(() => {
+                console.log("Request error: ");
             });
         }
+        
     });
-
-};
-
-// overflow control
-var check = (req, res, item ) => {
-
-    // id (for table)
-    lineNumber++; 
-    //console.log(lineNumber, item.statusCode, item.url);
- 
-    // GET request to selected URL
-    var response = {
-                        "status_code" : item.statusCode,
-                        "url": item.url,
-                        "request_time": getRequestTime(),
-                        "redirect_url": item.redirect,
-                        "url_id": lineNumber,
-                    };
-
-    codes.push(response); // add to codes array
     
-    // all lines ended. (Done!)
-    if(totalLine == lineNumber) {
-        done(req, res, codes);
-    }
+    // All lines are read, file is closed now.
+    lineReader.on('end', () => {
+
+        if(totalLine % chunkSize != 0) {
+
+            chunkSize = totalLine % chunkSize;
+
+            getRequest(filtered, chunkSize).then((result) => {
+        
+                console.log("*********"+ result +"**********");
+                
+                done(codes);
+        
+                // reset
+                filtered  = [];
+                count     = 0;
+
+                console.log("Total Line Number :", totalLine);
+                
+                lineReader.close();
+
+                process.exit(1);
+        
+            }).catch((error) => {
+                console.log("Request error: ", error);
+            });
+        }        
+    });
+}
+
+// process start
+try {
+    readFile(file, filtered);
+} catch (error) {
+    console.log("File not exist!", error);
+}
+
+// GET Request
+var getRequest = (filtered, chunkSize) => {
+
+    return new Promise((resolve, reject) => {
+    
+        var callbackControl = 0;
+
+        console.log('Filtered: ', filtered);
+        
+        filtered.forEach( url => {
+            
+            agent = chooseUserAgent(url);
+            
+            request({   url: url,
+                        followRedirect: false,
+                        headers:{ 'User-Agent': agent }}, (error, response) => {
+                        
+                        if(response != null) {
+                            
+                            var response = {
+                                "status_code" : response && response.statusCode,
+                                "url": url,
+                                "request_time": getRequestTime(),
+                                "redirect_url": response.headers.location,
+                                "url_id": id++
+                            };
+                            
+                            console.log("status", response.status_code, response.url);
+                            
+                        }
+
+                        if(response != null) {
+                            codes.push(response);
+                        }
+                        
+                        callbackControl++;
+                        
+                        if(callbackControl == chunkSize) {
+                            
+                            resolve("Chunk Completed!");
+
+                        }
+            });
+
+        });
+    });
 }
 
 // all datas saved to DB.
-var done = (req, res, result) => {
+var done = (result) => {
 
     console.log(result);
+
+    // DB connection string
+    pool = new Pool({
+        host: 'localhost',
+        user: 'root',
+        password: '123',
+        database: 'notfound',
+        max: 20
+    });
+
+    //Connection Opened
+    pool.connect();
 
     // DB connect
     let dataFormat = sql.define({
@@ -195,23 +218,11 @@ var done = (req, res, result) => {
 
     try {
 
-        // DB connection string
-        pool = new Pool({
-            host: 'localhost',
-            user: 'root',
-            password: '123',
-            database: 'notfound',
-            max: 20
-        });
-        
-        //Connection Opened
-        pool.connect();
-
         // Bulk insert
-        //let query = dataFormat.insert(result).returning(dataFormat.url_id).toQuery();
-        //console.log(query);
+        let query = dataFormat.insert(result).returning(dataFormat.url_id).toQuery();
+        // console.log(query);
 
-        //let rows = pool.query(query);
+        pool.query(query);
         console.log("Rows Affected!");
         
     }catch(e) {
@@ -220,11 +231,9 @@ var done = (req, res, result) => {
         // Connection Closed
         pool.end();
     }
-
-    res.end();
 }
 
-// Regex control (http or http url) 
+// Regex control (http or https url) 
 var regexControl = (data) => {
 
     let regex = /(https?:\/\/[^\s:,]+)/gi;
@@ -232,27 +241,76 @@ var regexControl = (data) => {
     return data.match(regex);
 }
 
-// Request time
+// get request time
 var getRequestTime = () => {
 
     const date = new Date();
 
-    const value =   date.getHours() + ":" + date.getMinutes() + ":" + date.getSeconds()
+    const time =   date.getHours() + ":" + date.getMinutes() + ":" + date.getSeconds()
                     + " -- " + 
-                    date.getDate() + "/" + date.getMonth() + "/" + date.getYear();
+                    date.getDate() + "/" + date.getMonth() + "/" + date.getFullYear();
 
-    return value;
+    return time;
+}
+
+// Choose user agent
+var chooseUserAgent = (url) => {
+    
+    var agent   = "",
+        temp    = "",
+        agentControl    = /(\/\/m+)/gi; // if mobile url: (http(s)://m.example.com) return: m
+
+    temp = (url.match(agentControl) != null) ? url.match(agentControl)[0] : null;
+    
+    if(temp) {
+        // mobile/desktop url control
+        agent = temp.substring(2,3);
+    }
+
+    // if the url is mobile or desktop, select the relevant googlebot agent.
+    agent = ( agent == 'm' ) ? MobileGoogleBot : DesktopGoogleBot;
+
+    return agent;
 }
 
 // XML file reader
-var getXmlReader = (xml) => {
+var getXmlReader = (xmlFile) => {
+    
+    
+    fs.readFile(xmlFile, 'utf-8', (err, data) => {
 
-    // read with jackson.
-    const ast = XmlReader.parseSync(xml);
+        if(err) console.log(err);
 
+        let xmlArray    = [],
+            xmlUrl      = "";
+        
+        // we then pass the data to our method here
+        xmlReader(data, (err, result) => {
+
+            if(err) console.log("File Error: ", err);
+            
+            result.products.urun.forEach(index => {
+
+               // here we log the results of our xml string conversion
+                xmlUrl = index.urun_url[0];
+                xmlArray.push(xmlUrl + '\r\n');
+                console.log(xmlUrl);
+            });
+        });
+
+        // create .csv file and write all result.
+        fs.writeFile('critio.csv', xmlArray, function(err) {
+            
+            if(err) console.log(err);
+        
+            console.log("The file was saved!");
+        }); 
+    });
 }
 
+// getXmlReader('criteo.xml');
+
 // Listen port
-app.listen(port, function() {
+app.listen(port, () => {
     console.log('listening on 3000');
 });
