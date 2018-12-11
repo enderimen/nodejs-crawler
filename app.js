@@ -27,13 +27,13 @@ app.use((req, res, next) => {
     var pool        = "", // postgre define
         regexArray  = "",
 
-        file        = 'output1.csv', // file name
+        file        = 'sample.csv', // file name
         
         codes       = [],   // list of data to be saved to db
         filtered    = [],   // regexed urls
         
         count       = 0,    // chunk control
-        chunkSize   = 1000,  // part 
+        chunkSize   = 2,    // part 
         totalLine   = 0,    // total line number
         id          = 1,    // url id (auto increment)
         
@@ -219,10 +219,10 @@ var done = (result) => {
     try {
 
         // Bulk insert
-        let query = dataFormat.insert(result).returning(dataFormat.url_id).toQuery();
+        // let query = dataFormat.insert(result).returning(dataFormat.url_id).toQuery();
         // console.log(query);
 
-        pool.query(query);
+        // pool.query(query);
         console.log("Rows Affected!");
         
     }catch(e) {
