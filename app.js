@@ -299,7 +299,7 @@ var getXmlReader = (xmlFile) => {
         });
 
         // create .csv file and write all result.
-        fs.writeFile('critio.csv', xmlArray, function(err) {
+        fs.writeFile('sample.csv', xmlArray, function(err) {
             
             if(err) console.log(err);
         
@@ -307,8 +307,8 @@ var getXmlReader = (xmlFile) => {
         }); 
     });
 }
-
-// getXmlReader('criteo.xml');
+// if use, clear comment 
+// getXmlReader('sample.xml');
 
 // Listen port
 app.listen(port, () => {
