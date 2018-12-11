@@ -1,0 +1,34 @@
+  <products>
+  <urun>
+    <urun_id><![CDATA[2729]]></urun_id>
+    <urun_adi><![CDATA[]]></urun_adi>
+    <kategori><![CDATA[]]></kategori>
+    <altkategori><![CDATA[]]></altkategori>
+    <fiyat><![CDATA[]]></fiyat>
+    <birim><![CDATA[TL]]></birim>
+    <resimurl><![CDATA[]]></resimurl>
+    <urun_url><![CDATA[https://www.sample.com/]]></urun_url>
+    <ilce><![CDATA[Çankaya]]></ilce>
+    <il><![CDATA[Ankara]]></il>
+    <facebook_slogan><![CDATA[]]></facebook_slogan>
+    <CategoryId3><![CDATA[2017-09-21 00:28:18]]></CategoryId3>
+    <account_id><![CDATA[319]]></account_id>
+    <account_type><![CDATA[Kurumsal]]></account_type>
+  </urun>
+  <urun>
+    <urun_id><![CDATA[2729]]></urun_id>
+    <urun_adi><![CDATA[]]></urun_adi>
+    <kategori><![CDATA[Satılık]]></kategori>
+    <altkategori><![CDATA[Arsa]]></altkategori>
+    <fiyat><![CDATA[450.000]]></fiyat>
+    <birim><![CDATA[TL]]></birim>
+    <resimurl><![CDATA[]]></resimurl>
+    <urun_url><![CDATA[https://www.sample1.com/]]></urun_url>
+    <ilce><![CDATA[Çankaya]]></ilce>
+    <il><![CDATA[Ankara]]></il>
+    <facebook_slogan><![CDATA[Aradığınız Arsa Burada!]]></facebook_slogan>
+    <CategoryId3><![CDATA[2017-09-21 00:28:18]]></CategoryId3>
+    <account_id><![CDATA[319]]></account_id>
+    <account_type><![CDATA[Kurumsal]]></account_type>
+  </urun>
+</products>
