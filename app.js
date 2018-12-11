@@ -9,12 +9,6 @@ var express = require('express'),
     lineByLineReader = require('line-by-line'),
     xmlReader = require('xml2js').parseString;
 
-// pug engine (UI)
-app.set('view engine', 'pug');
-
-// .css, .js .etc files access permission (only public/ folder)
-app.use('/public', express.static('public'));
-
 // CORS error (solve)
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
