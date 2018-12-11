@@ -3,10 +3,9 @@
 Asynchronously reading a list of URLs in a file (.csv, .txt, etc.) with the desired number (50, 100 etc.)
 The request is made and the response is returned to the POSTGRES database.
 
-NOTE: For a specific XML format;
-Clear All URLs There is also a Save as .csv file feature.
+  NOTE: For a specific XML format; Clear All URLs There is also a Save as .csv file feature.
 
-## Used Library (Requirements)
+ ## Used Library (Requirements)
 
     require('express'),
     require('request'),
@@ -15,6 +14,8 @@ Clear All URLs There is also a Save as .csv file feature.
     require('sql'),
     require('line-by-line'),
     require('xml2js');
+    
+  NOTE: By default, "npm install" will install all modules listed as dependencies in package.json.
   
   ## Run
   
