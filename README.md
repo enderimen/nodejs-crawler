@@ -5,7 +5,7 @@ The request is made and the response is returned to the POSTGRES database.
 
   NOTE: For a specific XML format; Clear All URLs There is also a Save as .csv file feature.
 
- ## Used Library (Requirements)
+ ## Used Libraries (Requirements)
 
     require('express'),
     require('request'),
